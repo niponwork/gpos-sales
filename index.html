@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ยอดขายร้านไก่ย่าง</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#e8692a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ยอดขาย">
+<meta name="robots" content="noindex,nofollow">
+<style>
+:root{--bg:#fafaf8;--fg:#1d1d1b;--mut:#6b6b66;--card:#fff;--line:#e6e4de;--acc:#e8692a;--bad:#c0392b}
+@media(prefers-color-scheme:dark){:root{--bg:#161614;--fg:#f1efe9;--mut:#a09d94;--card:#201f1d;--line:#333128;--acc:#f08a4b;--bad:#ef6b5b}}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,"Sukhumvit Set","Thonburi",system-ui,sans-serif;background:var(--bg);color:var(--fg);padding-bottom:env(safe-area-inset-bottom)}
+header{padding:calc(12px + env(safe-area-inset-top)) 16px 12px;border-bottom:1px solid var(--line)}
+h1{font-size:19px;margin:0 0 8px}h2{font-size:16px;margin:26px 0 4px}.sub{color:var(--mut);font-size:13px;margin:0 0 8px}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+select,button,input{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
+button{cursor:pointer}button.on{border-color:var(--acc);color:var(--acc)}
+main{max-width:1100px;margin:0 auto;padding:12px 16px 48px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.card.big{border-color:var(--acc);grid-column:1/-1}.lb{color:var(--mut);font-size:13px}.v{font-size:22px;font-weight:700;margin-top:2px}.big .v{font-size:28px}
+.warn{color:var(--bad);font-size:12px;margin-top:6px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);font-size:14px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}th:first-child,td:first-child{text-align:left;white-space:normal;min-width:7.5rem}
+th{color:var(--mut);font-weight:600;font-size:12px}tr:last-child td{border-bottom:0}tfoot td{font-weight:700}
+.wrap{overflow-x:auto;border-radius:12px}.foot{color:var(--mut);font-size:12px;margin-top:16px}
+#gate{max-width:340px;margin:18vh auto 0;padding:0 20px;text-align:center}#gate input{width:100%;margin:10px 0}#gate button{width:100%;background:var(--acc);color:#fff;border-color:var(--acc)}
+#msg{color:var(--bad);font-size:14px;min-height:1.4em}label.rm{display:flex;gap:8px;align-items:center;justify-content:center;color:var(--mut);font-size:13px}label.rm input{width:auto;margin:0}
+</style></head><body>
+<div id="gate">
+  <h1>ยอดขายร้านไก่ย่าง</h1>
+  <p class="sub">ใส่รหัสผ่านเพื่อดูข้อมูล</p>
+  <form id="f"><input id="pw" type="password" autocomplete="current-password" placeholder="รหัสผ่าน" required>
+  <label class="rm"><input id="rm" type="checkbox" checked> จำรหัสผ่านในเครื่องนี้</label>
+  <p id="msg"></p><button type="submit">เปิดดู</button></form>
+</div>
+<div id="app" hidden>
+<header><h1>ยอดขายร้านไก่ย่าง</h1>
+<div class="ctl"><button id="b1">วันล่าสุด</button><button id="b7">7 วัน</button><button id="b30">30 วัน</button><button id="ball">ทั้งหมด</button></div>
+<div class="ctl" style="margin-top:8px"><label>จาก <select id="from"></select></label><label>ถึง <select id="to"></select></label></div></header>
+<main id="out"></main></div>
+<script>
+const CH_NAMES={'ออเดอร์จากPOS':'หน้าร้าน'};
+const $=id=>document.getElementById(id);
+const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const fmt=n=>n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtI=n=>n.toLocaleString('th-TH',{maximumFractionDigits:2});
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let DAYS=[];
+async function decrypt(pw,o){
+  const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveBits']);
+  const bits=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt:b64(o.salt),iterations:o.iter,hash:'SHA-256'},km,512));
+  const iv=b64(o.iv),ct=b64(o.ct),mac=b64(o.mac);
+  const hk=await crypto.subtle.importKey('raw',bits.slice(32),{name:'HMAC',hash:'SHA-256'},false,['verify']);
+  const msg=new Uint8Array(iv.length+ct.length);msg.set(iv);msg.set(ct,iv.length);
+  if(!await crypto.subtle.verify('HMAC',hk,mac,msg))throw new Error('bad');
+  const ak=await crypto.subtle.importKey('raw',bits.slice(0,32),'AES-CBC',false,['decrypt']);
+  const gz=new Uint8Array(await crypto.subtle.decrypt({name:'AES-CBC',iv},ak,ct));
+  const ds=new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return JSON.parse(await new Response(ds).text());
+}
+async function unlock(pw,remember){
+  $('msg').textContent='กำลังเปิด...';
+  let o;
+  try{o=await (await fetch('data.enc.json',{cache:'no-store'})).json();}catch(e){$('msg').textContent='โหลดข้อมูลไม่ได้ ตรวจสอบอินเทอร์เน็ต';return false;}
+  try{DAYS=await decrypt(pw,o);}catch(e){$('msg').textContent='รหัสผ่านไม่ถูกต้อง';try{localStorage.removeItem('pw');}catch(_){}return false;}
+  try{if(remember)localStorage.setItem('pw',pw);}catch(_){}
+  $('gate').hidden=true;$('app').hidden=false;start();return true;
+}
+$('f').onsubmit=e=>{e.preventDefault();unlock($('pw').value,$('rm').checked);};
+try{const s=localStorage.getItem('pw');if(s)unlock(s,true);}catch(_){}
+const from=$('from'),to=$('to');
+function start(){
+  DAYS.sort((a,b)=>a.date.localeCompare(b.date));
+  [from,to].forEach(s=>{s.innerHTML='';DAYS.forEach(d=>{const o=document.createElement('option');o.value=d.date;o.textContent=d.date;s.appendChild(o);});});
+  setRange(DAYS.length-1,DAYS.length-1);
+}
+function setRange(i,j){from.value=DAYS[i].date;to.value=DAYS[j].date;render();}
+const last=n=>setRange(Math.max(0,DAYS.length-n),DAYS.length-1);
+$('b1').onclick=()=>last(1);$('b7').onclick=()=>last(7);$('b30').onclick=()=>last(30);$('ball').onclick=()=>last(DAYS.length);
+from.onchange=()=>{if(from.value>to.value)to.value=from.value;render();};
+to.onchange=()=>{if(to.value<from.value)from.value=to.value;render();};
+function table(head,rows,foot){
+  return '<div class="wrap"><table><thead><tr>'+head.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'
+   +rows.map(r=>'<tr>'+r.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join('')+'</tbody>'
+   +(foot?'<tfoot><tr>'+foot.map(c=>'<td>'+c+'</td>').join('')+'</tr></tfoot>':'')+'</table></div>';
+}
+function render(){
+  const a=from.value,b=to.value,days=DAYS.filter(d=>d.date>=a&&d.date<=b),multi=days.length>1;
+  const branches=[];days.forEach(d=>d.branches.forEach(x=>{if(!branches.includes(x.branch))branches.push(x.branch);}));
+  const bTot={};branches.forEach(n=>bTot[n]=0);let grand=0;const items={},chan={},perDay={},dayBr={};
+  days.forEach(d=>{dayBr[d.date]={};d.branches.forEach(x=>{
+    bTot[x.branch]+=x.total;grand+=x.total;dayBr[d.date][x.branch]=x.total;
+    x.rows.forEach(r=>{const it=items[r.item]||(items[r.item]={qty:{},net:0,q:0});it.qty[x.branch]=(it.qty[x.branch]||0)+r.qty;it.net+=r.net;it.q+=r.qty;
+      const pd=perDay[r.item]||(perDay[r.item]={});pd[d.date]=(pd[d.date]||0)+r.qty;
+      const cn=CH_NAMES[r.channel]||r.channel;const c=chan[cn]||(chan[cn]={});c[x.branch]=(c[x.branch]||0)+r.net;});});});
+  let h='<p class="sub">'+(multi?esc(a)+' ถึง '+esc(b)+' ('+days.length+' วัน)':esc(a))+'</p><section class="cards"><div class="card big"><div class="lb">ยอดรวมทุกสาขา</div><div class="v">฿ '+fmt(grand)+'</div></div>';
+  branches.forEach(n=>{h+='<div class="card"><div class="lb">'+esc(n)+'</div><div class="v">฿ '+fmt(bTot[n])+'</div></div>';});
+  h+='</section>';
+  const list=Object.entries(items).sort((x,y)=>y[1].q-x[1].q),totQ=list.reduce((s,[,i])=>s+i.q,0),totN=list.reduce((s,[,i])=>s+i.net,0);
+  h+='<h2>จำนวนที่ขายแยกตามรายการ</h2><p class="sub">รวมทุกช่องทาง</p>';
+  h+=table(['รายการ'].concat(branches,['รวม (ชิ้น)','ยอดขาย (฿)']),list.map(([n,i])=>[esc(n)].concat(branches.map(s=>fmtI(i.qty[s]||0)),['<b>'+fmtI(i.q)+'</b>',fmt(i.net)])),
+    ['รวม'].concat(branches.map(s=>fmtI(list.reduce((t,[,i])=>t+(i.qty[s]||0),0))),[fmtI(totQ),fmt(totN)]));
+  if(multi){
+    h+='<h2>ยอดขายรายวัน (฿)</h2>';
+    h+=table(['วันที่'].concat(branches,['รวม']),days.map(d=>[d.date].concat(branches.map(s=>fmt(dayBr[d.date][s]||0)),['<b>'+fmt(Object.values(dayBr[d.date]).reduce((t,x)=>t+x,0))+'</b>'])),['รวม'].concat(branches.map(s=>fmt(bTot[s])),[fmt(grand)]));
+  }
+  h+='<h2>ยอดขายแยกช่องทาง (฿)</h2>';
+  h+=table(['ช่องทาง'].concat(branches,['รวม']),Object.entries(chan).map(([n,c])=>[esc(n)].concat(branches.map(s=>fmt(c[s]||0)),['<b>'+fmt(Object.values(c).reduce((t,x)=>t+x,0))+'</b>'])));
+  h+='<div class="foot">ดึงข้อมูลล่าสุด '+esc(days.length?days[days.length-1].fetched_at:'-')+' (ข้อมูลเป็นยอด ณ เวลาที่ดึง)</div>';
+  $('out').innerHTML=h;
+}
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script></body></html>
