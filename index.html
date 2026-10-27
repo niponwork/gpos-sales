@@ -105,6 +105,19 @@ function render(){
   h+='<h2>จำนวนที่ขายแยกตามรายการ</h2><p class="sub">รวมทุกช่องทาง</p>';
   h+=table(['รายการ'].concat(branches,['รวม (ชิ้น)','ยอดขาย (฿)']),list.map(([n,i])=>[esc(n)].concat(branches.map(s=>fmtI(i.qty[s]||0)),['<b>'+fmtI(i.q)+'</b>',fmt(i.net)])),
     ['รวม'].concat(branches.map(s=>fmtI(list.reduce((t,[,i])=>t+(i.qty[s]||0),0))),[fmtI(totQ),fmt(totN)]));
+  const CHK={'ไก่ย่างภูผาม่าน ไซส์XL':1,'ไก่ย่างภูผาม่านครึ่งตัว':0.5,'ข้าวหน้าไก่ย่าง':0.25};
+  const fmtC=n=>n.toLocaleString('th-TH',{maximumFractionDigits:2});
+  const ck=Object.entries(CHK).map(([n,r])=>[n,r,branches.map(s=>((items[n]&&items[n].qty[s])||0)*r)]);
+  const ckSum=v=>v.reduce((a,b)=>a+b,0);
+  h+='<h2>ปริมาฯไก่หมักที่ถูกใช้</h2><p class="sub">คำนวณจากจำนวนที่ขายรวมทุกช่องทาง: ไซส์XL ใช้ 1 ตัว, ครึ่งตัว ใช้ 0.5 ตัว, ข้าวหน้าไก่ย่าง ใช้ 0.25 ตัว ต่อออเดอร์</p>';
+  h+=table(['รายการ','ใช้ต่อออเดอร์ (ตัว)'].concat(branches,['รวม (ตัว)']),
+    ck.map(([n,r,v])=>[esc(n),fmtC(r)].concat(v.map(fmtC),['<b>'+fmtC(ckSum(v))+'</b>'])),
+    ['รวมไก่หมักที่ใช้ (ตัว)',''].concat(branches.map((s,i)=>fmtC(ck.reduce((t,c)=>t+c[2][i],0))),[fmtC(ck.reduce((t,c)=>t+ckSum(c[2]),0))]));
+  if(multi){
+    h+='<h2>ไก่หมักที่ใช้รายวัน (ตัว, ทุกสาขา)</h2>';
+    h+=table(['วันที่','ไก่หมักที่ใช้ (ตัว)'],days.map(d=>[d.date,fmtC(Object.entries(CHK).reduce((t,[n,r])=>t+((perDay[n]||{})[d.date]||0)*r,0))]),
+      ['รวม',fmtC(ck.reduce((t,c)=>t+ckSum(c[2]),0))]);
+  }
   if(multi){
     h+='<h2>ยอดขายรายวัน (฿)</h2>';
     h+=table(['วันที่'].concat(branches,['รวม']),days.map(d=>[d.date].concat(branches.map(s=>fmt(dayBr[d.date][s]||0)),['<b>'+fmt(Object.values(dayBr[d.date]).reduce((t,x)=>t+x,0))+'</b>'])),['รวม'].concat(branches.map(s=>fmt(bTot[s])),[fmt(grand)]));
