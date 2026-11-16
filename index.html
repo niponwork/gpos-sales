@@ -92,15 +92,16 @@ function table(head,rows,foot){
 function render(){
   const a=from.value,b=to.value,days=DAYS.filter(d=>d.date>=a&&d.date<=b),multi=days.length>1;
   const branches=[];days.forEach(d=>d.branches.forEach(x=>{if(!branches.includes(x.branch))branches.push(x.branch);}));
-  const bTot={};branches.forEach(n=>bTot[n]=0);let grand=0;const items={},chan={},perDay={},dayBr={};
+  const bTot={};branches.forEach(n=>bTot[n]=0);let grand=0;const items={},chan={},perDay={},dayBr={};const warns=[];
   days.forEach(d=>{dayBr[d.date]={};d.branches.forEach(x=>{
-    bTot[x.branch]+=x.total;grand+=x.total;dayBr[d.date][x.branch]=x.total;
+    bTot[x.branch]+=x.total;grand+=x.total;dayBr[d.date][x.branch]=x.total;if(x.warning)warns.push(d.date+' '+x.branch+': '+x.warning);
     x.rows.forEach(r=>{const it=items[r.item]||(items[r.item]={qty:{},net:0,q:0});it.qty[x.branch]=(it.qty[x.branch]||0)+r.qty;it.net+=r.net;it.q+=r.qty;
       const pd=perDay[r.item]||(perDay[r.item]={});pd[d.date]=(pd[d.date]||0)+r.qty;
       const cn=CH_NAMES[r.channel]||r.channel;const c=chan[cn]||(chan[cn]={});c[x.branch]=(c[x.branch]||0)+r.net;});});});
   let h='<p class="sub">'+(multi?esc(a)+' ถึง '+esc(b)+' ('+days.length+' วัน)':esc(a))+'</p><section class="cards"><div class="card big"><div class="lb">ยอดรวมทุกสาขา</div><div class="v">฿ '+fmt(grand)+'</div></div>';
   branches.forEach(n=>{h+='<div class="card"><div class="lb">'+esc(n)+'</div><div class="v">฿ '+fmt(bTot[n])+'</div></div>';});
   h+='</section>';
+  if(warns.length)h+='<div class="warn">'+warns.map(esc).join('<br>')+'</div>';
   const list=Object.entries(items).sort((x,y)=>y[1].q-x[1].q),totQ=list.reduce((s,[,i])=>s+i.q,0),totN=list.reduce((s,[,i])=>s+i.net,0);
   h+='<h2>จำนวนที่ขายแยกตามรายการ</h2><p class="sub">รวมทุกช่องทาง</p>';
   h+=table(['รายการ'].concat(branches,['รวม (ชิ้น)','ยอดขาย (฿)']),list.map(([n,i])=>[esc(n)].concat(branches.map(s=>fmtI(i.qty[s]||0)),['<b>'+fmtI(i.q)+'</b>',fmt(i.net)])),
